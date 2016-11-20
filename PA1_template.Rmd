@@ -1,0 +1,159 @@
+---
+title: "Reproducible assignment 1 - activity monitoring"
+author: "fruzsi"
+date: "19 November 2016"
+output: 
+    html_document:
+        keep_md: true
+---
+
+Loading packages
+
+```{r lib}
+library(dplyr)
+library(ggplot2)
+```
+
+
+# Setting parameters, loading data, and having a peak
+
+```{r dataload}
+DIR <-'C:\\Users\\fishie\\Desktop\\coursera\\repoClone\\datasciencecoursera\\replic_assignmnent1'
+fname <- 'activity.csv'
+data <- read.csv(paste(DIR,'\\', fname, sep=''))
+head(data)
+summary(data)
+```
+
+# Mean total number of steps taken per day
+
+Transform date column from character to Date object 
+
+```{r}
+data$date <- as.Date(data$date)
+```
+
+Calculate number of steps per day
+
+```{r stepsum}
+steps_stat <- data %>%
+    group_by(date) %>%
+    filter(!is.na(steps)) %>%
+    summarize(stepcount = sum(steps))
+
+steps_stat
+```
+
+Plot step counts per day
+
+```{r stepsumplot}
+p <- ggplot(steps_stat, aes(stepcount))
+p + geom_histogram(binwidth = 800, fill='darkblue') +
+    labs(title='total steps per days', x='steps per day', y='frequency')
+```
+
+Mean and median of steps taken a day
+
+```{r}
+# Mean:
+mean(steps_stat$stepcount)
+# Median:
+median(steps_stat$stepcount)
+```
+
+# Discover average daily pattern
+
+Calculate average steps per intervals
+
+```{r stepsavg}
+steps_stat <- data %>%
+    group_by(interval) %>%
+    filter(!is.na(steps)) %>%
+    summarize(stepavg = mean(steps))
+
+steps_stat
+```
+
+Plot average daily steps
+
+```{r stepsavgplot}
+p <- ggplot(steps_stat, aes(x=interval, y=stepavg))
+p + geom_line(col='darkblue', size=1) +
+    labs(title='average daily steps', x='interval', y='average steps per day')
+```
+
+Find the 5-minute interwal that on average contains the most number of steps
+
+```{r}
+steps_stat[which.max(steps_stat$stepavg),]
+```
+
+
+# Imputing missing values
+
+number of missing values in the dataset
+
+```{r}
+sum(is.na(data$steps))
+```
+
+```{r imput}
+na.ind <- is.na(data$steps)
+data.means <- tapply(data$steps, data$interval, mean, na.rm=T, simplify=T)
+data.imputed <- data
+data.imputed$steps[na.ind] <- data.means[as.character(data$interval[na.ind])]
+sum(is.na(data.imputed$steps))
+
+```
+
+Histogram of total number of steps per days - imputed data
+
+```{r}
+steps_stat <- data.imputed %>%
+    group_by(date) %>%
+    filter(!is.na(steps)) %>%
+    summarize(stepcount = sum(steps))
+
+# plot
+p <- ggplot(steps_stat, aes(stepcount))
+p + geom_histogram(binwidth = 800, fill='darkred') +
+    labs(title='total steps per days - imputed data', x='steps per day', y='frequency')
+```
+
+Mean and median of steps taken a day - imputed data
+
+```{r}
+# Mean - imputed data:
+mean(steps_stat$stepcount)
+# Median - imputed data:
+median(steps_stat$stepcount)
+```
+-> imputing values didn't make very much of a difference; moved the median closer (to the same) to the mean, but that's not unexpected, after imputing mean values
+
+# Differences between activity patterns on weekdays vs weekends
+
+Create factor variable for weekday and weekend
+
+```{r}
+data.imputed <- data.imputed %>%
+    mutate(weekpart = ifelse(weekdays(date)=='Saturday' | 
+                                  weekdays(date)=='Sunday',
+                              'weekend', 'weekday'))
+
+# statistics
+steps_stat <- data.imputed %>%
+    group_by(interval,weekpart) %>%
+    summarize(stepavg = mean(steps))
+
+head(steps_stat)
+# plot
+p <- ggplot(steps_stat, aes(x=interval, y=stepavg, color=weekpart))
+p + geom_line(size=1) +
+    facet_wrap(~weekpart,nrow=2,ncol=1) +
+    labs(title='average daily steps, by weekpart', x='interval', 
+         y='average steps per day')
+```
+
+
+-> Subject seems to be more active during workdays in the morning, but then a bit more active during the day in the weekends
+
